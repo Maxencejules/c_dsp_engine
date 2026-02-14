@@ -49,6 +49,12 @@ c-dsp-engine/
 │   ├── fir.h
 │   ├── worker.c
 │   ├── worker.h
+├── tests/
+│   ├── test_main.c
+│   ├── test_helpers.h
+│   ├── test_fir.c
+│   ├── test_dsp.c
+│   ├── test_worker.c
 ├── CMakeLists.txt
 ├── Makefile
 └── README.md
@@ -73,6 +79,13 @@ cmake --build .
 ```
 ./c_dsp_engine
 ```
+
+### Test
+```
+ctest --output-on-failure
+```
+
+Runs 16 tests covering FIR filtering, signal generation, and multithreaded worker correctness.
 
 ## Example Output
 
