@@ -7,6 +7,16 @@ static void *worker_run(void *arg) {
     fir_init(&job->filter, job->coeffs, job->num_taps);
     fir_reset(&job->filter);
 
+    // Warm up the filter with samples before this chunk so state is correct
+    // at the boundary. Process up to num_taps-1 preceding samples, discarding output.
+    size_t warmup = 0;
+    if (job->num_taps > 1 && job->start > 0) {
+        warmup = (job->start < job->num_taps - 1) ? job->start : job->num_taps - 1;
+        for (size_t i = 0; i < warmup; ++i) {
+            fir_process_sample(&job->filter, job->input[job->start - warmup + i]);
+        }
+    }
+
     const float *in = job->input + job->start;
     float *out = job->output + job->start;
 

@@ -29,13 +29,13 @@ Example output:
 Generating signal...
 Single threaded FIR time: 0.106091 s
 Multithreaded FIR time: 0.064802 s
-MSE between single and multithreaded outputs: 7.38933028e-06
+MSE between single and multithreaded outputs: 0.00000000e+00
 ```
 
 ### Numerical Accuracy Validation
 Computes Mean Squared Error (MSE).
 
-Each worker thread starts with a zeroed filter state, so the first few samples at each chunk boundary differ from the single-threaded output. The MSE is low because only a small number of boundary samples are affected relative to the total signal length.
+Low MSE confirms that multithreading produces equivalent output to the single-threaded pipeline. Each worker thread warms up its filter state using samples before its chunk boundary, so outputs match exactly.
 
 ## Project Structure
 
@@ -80,7 +80,7 @@ cmake --build .
 Generating signal...
 Single threaded FIR time: 0.106091 s
 Multithreaded FIR time: 0.064802 s
-MSE between single and multithreaded outputs: 7.38933028e-06
+MSE between single and multithreaded outputs: 0.00000000e+00
 ```
 
 Speedup: ~1.6× faster.
@@ -95,7 +95,8 @@ Standard convolution.
 
 ### 3. Multithreaded FIR
 - Splits signal into blocks
-- Each thread processes one block with its own FIR filter state
+- Each thread warms up its FIR state using preceding samples before processing its chunk
+- Handles overlap correctly
 - Combines results into a shared output buffer  
 
 ### 4. Accuracy Measurement
