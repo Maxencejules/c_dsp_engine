@@ -35,7 +35,7 @@ MSE between single and multithreaded outputs: 7.38933028e-06
 ### Numerical Accuracy Validation
 Computes Mean Squared Error (MSE).
 
-Low MSE confirms that multithreading produces equivalent output to the single-threaded pipeline.
+Each worker thread starts with a zeroed filter state, so the first few samples at each chunk boundary differ from the single-threaded output. The MSE is low because only a small number of boundary samples are affected relative to the total signal length.
 
 ## Project Structure
 
@@ -50,6 +50,7 @@ c-dsp-engine/
 │   ├── worker.c
 │   ├── worker.h
 ├── CMakeLists.txt
+├── Makefile
 └── README.md
 ```
 
@@ -93,10 +94,9 @@ A noisy sine wave.
 Standard convolution.
 
 ### 3. Multithreaded FIR
-- Splits signal into blocks  
-- Each thread processes one block  
-- Handles overlap correctly  
-- Combines results  
+- Splits signal into blocks
+- Each thread processes one block with its own FIR filter state
+- Combines results into a shared output buffer  
 
 ### 4. Accuracy Measurement
 MSE:
