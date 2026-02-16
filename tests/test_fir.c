@@ -3,13 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Impulse response: feeding [1, 0, 0, ...] and verifying output.
-   Note: the FIR implementation stores the current sample in state before
-   computing, so coeffs[0] and coeffs[1] both act on the current sample.
-   For impulse input [1,0,0,...] with coeffs [0.25, 0.5, 0.25]:
-     y[0] = 0.25*1 + 0.5*1 + 0.25*0 = 0.75
-     y[1] = 0.25*0 + 0.5*0 + 0.25*1 = 0.25
-     y[2..] = 0 */
+/* Impulse response: feeding [1, 0, 0, ...] should produce the coefficients. */
 static int test_fir_impulse_response(void) {
     const float coeffs[] = {0.25f, 0.5f, 0.25f};
     const size_t num_taps = 3;
@@ -22,9 +16,9 @@ static int test_fir_impulse_response(void) {
     float output[6];
     fir_process_block(&f, input, output, 6);
 
-    ASSERT_FLOAT_NEAR(output[0], 0.75f, 1e-6f);
-    ASSERT_FLOAT_NEAR(output[1], 0.25f, 1e-6f);
-    ASSERT_FLOAT_NEAR(output[2], 0.0f, 1e-6f);
+    ASSERT_FLOAT_NEAR(output[0], 0.25f, 1e-6f);
+    ASSERT_FLOAT_NEAR(output[1], 0.5f, 1e-6f);
+    ASSERT_FLOAT_NEAR(output[2], 0.25f, 1e-6f);
     ASSERT_FLOAT_NEAR(output[3], 0.0f, 1e-6f);
     ASSERT_FLOAT_NEAR(output[4], 0.0f, 1e-6f);
     ASSERT_FLOAT_NEAR(output[5], 0.0f, 1e-6f);

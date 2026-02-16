@@ -22,23 +22,19 @@ float fir_process_sample(FirFilter *f, float x) {
     size_t i;
     float y = 0.0f;
 
-    // For simplicity, maintain a small circular buffer concept by shifting.
-    if (f->num_taps > 1) {
-        // Shift state right
-        for (i = f->num_taps - 2; i > 0; --i) {
-            f->state[i] = f->state[i - 1];
-        }
-        if (f->num_taps > 1) {
-            f->state[0] = x;
-        }
-    }
-
     // Convolution: y = sum_{k=0..num_taps-1} h[k] * x[n-k]
     // x[n] is x, x[n-1] is state[0], x[n-2] is state[1], etc.
     y += f->coeffs[0] * x;
     for (i = 1; i < f->num_taps; ++i) {
-        float s = (i - 1 < f->num_taps - 1) ? f->state[i - 1] : 0.0f;
-        y += f->coeffs[i] * s;
+        y += f->coeffs[i] * f->state[i - 1];
+    }
+
+    // Update state after computing output
+    if (f->num_taps > 1) {
+        for (i = f->num_taps - 2; i > 0; --i) {
+            f->state[i] = f->state[i - 1];
+        }
+        f->state[0] = x;
     }
 
     return y;
