@@ -1,27 +1,66 @@
-cmake_minimum_required(VERSION 3.10)
-project(c_dsp_engine C)
-
+cmake_minimum_required(VERSION 3.20)
+project(c_dsp_engine VERSION 1.1.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
-
-# Shared library for DSP sources
-add_library(dsp_lib STATIC
-        src/dsp.c
-        src/fir.c
-        src/worker.c
-)
-target_link_libraries(dsp_lib m pthread)
-
-# Main executable
-add_executable(c_dsp_engine src/main.c)
-target_link_libraries(c_dsp_engine dsp_lib)
-
-# Tests
-enable_testing()
-add_executable(dsp_tests
-        tests/test_main.c
-        tests/test_fir.c
-        tests/test_dsp.c
-        tests/test_worker.c
-)
-target_link_libraries(dsp_tests dsp_lib)
-add_test(NAME dsp_tests COMMAND dsp_tests)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
+if(NOT CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    message(FATAL_ERROR "Use GCC/Clang with POSIX pthreads (MinGW UCRT64 on Windows).")
+endif()
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+if(CMAKE_CONFIGURATION_TYPES)
+    message(FATAL_ERROR "Use a single-config generator (Ninja or Makefiles) so benchmark flags are explicit.")
+endif()
+find_package(Threads REQUIRED)
+option(DSP_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+add_library(dsp_options INTERFACE)
+target_compile_options(dsp_options INTERFACE -Wall -Wextra -Wpedantic -Werror -Wshadow -ffp-contract=off)
+if(DSP_SANITIZERS)
+    if(WIN32)
+        message(FATAL_ERROR "Sanitizer profile requires a supported Linux/macOS GCC/Clang runtime.")
+    endif()
+    target_compile_options(dsp_options INTERFACE -fsanitize=address,undefined -fno-omit-frame-pointer)
+    target_link_options(dsp_options INTERFACE -fsanitize=address,undefined)
+endif()
+set(DSP_SOURCES src/dsp.c src/fir.c src/worker.c)
+add_library(dsp_lib ${DSP_SOURCES})
+target_include_directories(dsp_lib PUBLIC src)
+target_link_libraries(dsp_lib PUBLIC dsp_options Threads::Threads)
+if(UNIX)
+    target_link_libraries(dsp_lib PUBLIC m)
+endif()
+string(TOUPPER "${CMAKE_BUILD_TYPE}" DSP_BUILD_UPPER)
+set(DSP_RECORDED_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_${DSP_BUILD_UPPER}} -Wall -Wextra -Wpedantic -Werror -Wshadow -ffp-contract=off -std=c11")
+if(DSP_SANITIZERS)
+    string(APPEND DSP_RECORDED_FLAGS " -fsanitize=address,undefined -fno-omit-frame-pointer")
+endif()
+string(STRIP "${DSP_RECORDED_FLAGS}" DSP_RECORDED_FLAGS)
+string(REPLACE "\\" "\\\\" DSP_RECORDED_FLAGS "${DSP_RECORDED_FLAGS}")
+string(REPLACE "\"" "\\\"" DSP_RECORDED_FLAGS "${DSP_RECORDED_FLAGS}")
+configure_file(cmake/build_config.h.in generated/build_config.h @ONLY)
+add_executable(dsp_engine src/main.c)
+target_include_directories(dsp_engine PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_link_libraries(dsp_engine PRIVATE dsp_lib)
+if(WIN32)
+    target_link_libraries(dsp_engine PRIVATE advapi32)
+endif()
+include(CTest)
+if(BUILD_TESTING)
+    # Build the same sources with test-only allocation/thread fault indirection.
+    add_library(dsp_test_lib ${DSP_SOURCES} tests/fault_hooks.c)
+    target_include_directories(dsp_test_lib PUBLIC src tests)
+    target_compile_options(dsp_test_lib PRIVATE -include "${CMAKE_CURRENT_SOURCE_DIR}/tests/fault_hooks.h")
+    target_link_libraries(dsp_test_lib PUBLIC dsp_options Threads::Threads)
+    if(UNIX)
+        target_link_libraries(dsp_test_lib PUBLIC m)
+    endif()
+    add_executable(dsp_tests tests/test_main.c tests/test_fir.c tests/test_dsp.c tests/test_worker.c)
+    target_link_libraries(dsp_tests PRIVATE dsp_test_lib)
+    add_test(NAME dsp_regressions COMMAND dsp_tests)
+    add_test(NAME benchmark_smoke COMMAND dsp_engine --samples 4099 --taps 31 --threads 4 --trials 3
+             --csv "${CMAKE_CURRENT_BINARY_DIR}/smoke.csv")
+    add_test(NAME benchmark_invalid COMMAND dsp_engine --taps 4)
+    set_tests_properties(benchmark_invalid PROPERTIES WILL_FAIL TRUE)
+    set_tests_properties(dsp_regressions benchmark_smoke benchmark_invalid PROPERTIES TIMEOUT 60)
+endif()

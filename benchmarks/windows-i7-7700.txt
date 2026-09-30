@@ -1,0 +1,8 @@
+Compiler: GNU 15.2.0; build: Release; flags: -O3 -DNDEBUG -Wall -Wextra -Wpedantic -Werror -Wshadow -ffp-contract=off -std=c11
+CPU: Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz; logical processors: 8; OS: Windows
+N=480000 taps=63 active_threads=4 trials=7 seed=2026; Fs=48000 Hz; cutoff=0.1 cycles/sample; stream_chunk=257
+Monotonic wall time, initialization/teardown included; one excluded warmup per method.
+block   median=0.052081500 s min=0.047702500 s max=0.067849200 s throughput=9.216 Msamples/s max_abs_error=7.79633199e-07
+stream  median=0.051064100 s min=0.040968700 s max=0.061068300 s throughput=9.400 Msamples/s max_abs_error=7.79633199e-07
+threads median=0.037842600 s min=0.023395300 s max=0.102014100 s throughput=12.684 Msamples/s max_abs_error=7.79633199e-07
+Observed block/threads median ratio: 1.376x (workload/machine specific)
