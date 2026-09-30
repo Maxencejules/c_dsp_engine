@@ -1,0 +1,61 @@
+name: DSP validation
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build with warnings as errors
+        run: cmake --build build --parallel 2
+      - name: Reference, streaming, failure, and CLI tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Bounded repeated benchmark
+        run: ./build/dsp_engine --samples 48000 --taps 31 --threads 4 --trials 5 --csv build/benchmark.csv > build/benchmark.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-${{ matrix.os }}
+          path: |
+            build/benchmark.csv
+            build/benchmark.txt
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build --parallel 2
+      - run: ctest --test-dir build --output-on-failure
+      - run: ./build/dsp_engine.exe --samples 48000 --taps 31 --threads 4 --trials 5 --csv build/benchmark.csv > build/benchmark.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-windows
+          path: |
+            build/benchmark.csv
+            build/benchmark.txt
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DDSP_SANITIZERS=ON
+      - run: cmake --build build --parallel 2
+      - run: ctest --test-dir build --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+          UBSAN_OPTIONS: halt_on_error=1

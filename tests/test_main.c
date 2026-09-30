@@ -1,18 +1,7 @@
 #include "test_helpers.h"
-
-int tests_run = 0;
-int tests_passed = 0;
-int tests_failed = 0;
-
-extern void run_fir_tests(void);
-extern void run_dsp_tests(void);
-extern void run_worker_tests(void);
-
+int tests_run = 0, tests_failed = 0;
 int main(void) {
-    run_fir_tests();
-    run_dsp_tests();
-    run_worker_tests();
-
-    print_test_summary();
-    return tests_failed > 0 ? 1 : 0;
+    test_fir(); test_dsp(); test_worker();
+    printf("%d assertions, %d failures\n", tests_run, tests_failed);
+    return tests_failed ? EXIT_FAILURE : EXIT_SUCCESS;
 }

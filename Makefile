@@ -1,16 +1,11 @@
-CC = gcc
-CFLAGS = -O2 -Wall -Wextra -std=c11 -pthread
-
-SRC = src/main.c src/dsp.c src/fir.c src/worker.c
-OBJ = $(SRC:.c=.o)
-DEPS = src/dsp.h src/fir.h src/worker.h src/dsp.h
-
-TARGET = dsp_engine
-
-all: $(TARGET)
-
-$(TARGET): $(OBJ)
-	$(CC) $(CFLAGS) -o $@ $^
-
+# Optional convenience front end; CMake is the supported cross-platform build.
+.PHONY: all test bench clean
+all:
+	cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+	cmake --build build --parallel
+test: all
+	ctest --test-dir build --output-on-failure
+bench: all
+	./build/dsp_engine --csv build/benchmark.csv
 clean:
-	rm -f $(OBJ) $(TARGET)
+	cmake -E remove_directory build

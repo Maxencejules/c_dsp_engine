@@ -1,57 +1,66 @@
 #include "fir.h"
+#include <errno.h>
+#include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-void fir_init(FirFilter *f, const float *coeffs, size_t num_taps) {
-    f->coeffs = coeffs;
-    f->num_taps = num_taps;
-    if (num_taps > 1) {
-        f->state = (float *)calloc(num_taps - 1, sizeof(float));
-    } else {
-        f->state = NULL;
-    }
+static int valid(const FirFilter *filter) {
+    return filter && filter->coeffs && filter->num_taps > 0 &&
+           (filter->num_taps == 1 || filter->state);
 }
 
-void fir_reset(FirFilter *f) {
-    if (f->state && f->num_taps > 1) {
-        memset(f->state, 0, (f->num_taps - 1) * sizeof(float));
-    }
+int fir_init(FirFilter *filter, const float *coeffs, size_t num_taps) {
+    if (!filter) return EINVAL;
+    if (filter->coeffs || filter->state || filter->num_taps) return EBUSY;
+    if (!coeffs || !num_taps) return EINVAL;
+    if (num_taps - 1 > SIZE_MAX / sizeof(float)) return EOVERFLOW;
+    float *state = num_taps > 1 ? calloc(num_taps - 1, sizeof(float)) : NULL;
+    if (num_taps > 1 && !state) return ENOMEM;
+    filter->coeffs = coeffs;
+    filter->num_taps = num_taps;
+    filter->state = state;
+    return 0;
 }
 
-float fir_process_sample(FirFilter *f, float x) {
-    size_t i;
-    float y = 0.0f;
-
-    // Convolution: y = sum_{k=0..num_taps-1} h[k] * x[n-k]
-    // x[n] is x, x[n-1] is state[0], x[n-2] is state[1], etc.
-    y += f->coeffs[0] * x;
-    for (i = 1; i < f->num_taps; ++i) {
-        y += f->coeffs[i] * f->state[i - 1];
-    }
-
-    // Update state after computing output
-    if (f->num_taps > 1) {
-        for (i = f->num_taps - 2; i > 0; --i) {
-            f->state[i] = f->state[i - 1];
-        }
-        f->state[0] = x;
-    }
-
-    return y;
+int fir_reset(FirFilter *filter) {
+    if (!valid(filter)) return EINVAL;
+    if (filter->state) memset(filter->state, 0, (filter->num_taps - 1) * sizeof(float));
+    return 0;
 }
 
-void fir_process_block(FirFilter *f,
-                       const float *input,
-                       float *output,
-                       size_t length) {
-    for (size_t n = 0; n < length; ++n) {
-        output[n] = fir_process_sample(f, input[n]);
+float fir_process_sample(FirFilter *filter, float sample) {
+    if (!valid(filter)) return NAN;
+    float result = filter->coeffs[0] * sample;
+    for (size_t tap = 1; tap < filter->num_taps; ++tap)
+        result += filter->coeffs[tap] * filter->state[tap - 1];
+    if (filter->num_taps > 1) {
+        for (size_t index = filter->num_taps - 2; index > 0; --index)
+            filter->state[index] = filter->state[index - 1];
+        filter->state[0] = sample;
     }
+    return result;
 }
 
-void fir_free(FirFilter *f) {
-    if (f->state) {
-        free(f->state);
-        f->state = NULL;
-    }
+int fir_buffers_overlap(const float *input, const float *output, size_t length) {
+    uintptr_t first = (uintptr_t)input, second = (uintptr_t)output;
+    size_t bytes = length * sizeof(float); /* caller checks multiplication */
+    return first <= second ? second - first < bytes : first - second < bytes;
+}
+
+int fir_process_block(FirFilter *filter, const float *input, float *output, size_t length) {
+    if (!valid(filter)) return EINVAL;
+    if (!length) return 0;
+    if (!input || !output) return EINVAL;
+    if (length > SIZE_MAX / sizeof(float)) return EOVERFLOW;
+    if (input != output && fir_buffers_overlap(input, output, length)) return EINVAL;
+    for (size_t index = 0; index < length; ++index)
+        output[index] = fir_process_sample(filter, input[index]);
+    return 0;
+}
+
+void fir_free(FirFilter *filter) {
+    if (!filter) return;
+    free(filter->state);
+    *filter = (FirFilter){0};
 }
